@@ -1,0 +1,7 @@
+{
+  "name": "mydairy",
+  "version": "3.0.0",
+  "private": true,
+  "description": "MyDairy — movie / series / anime diary (static PWA + Vercel functions + Supabase)",
+  "engines": { "node": ">=18" }
+}
