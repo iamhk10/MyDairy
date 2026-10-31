@@ -1,7 +1,0 @@
-{
-  "name": "eternity",
-  "version": "2.0.0",
-  "private": true,
-  "description": "ΣTΣЯПITY — personal movie / web series / TV diary (static site + Vercel functions + Supabase)",
-  "engines": { "node": ">=18" }
-}
