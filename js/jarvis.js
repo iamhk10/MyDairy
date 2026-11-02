@@ -94,7 +94,36 @@
     draw();
   }
   mount();
-  const fab = $('#fab'); fab.innerHTML = I('spark'); fab.addEventListener('click', () => { $('#jarvis').scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => $('#jin').focus({ preventScroll: true }), 450); });
+  /* ---------- floating Jarvis button (bottom-right) ---------- */
+  const FACE = '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><defs><linearGradient id="fg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#c7d2fe"/></linearGradient></defs><path d="M24 5v6" stroke="#22d3ee" stroke-width="2.4" stroke-linecap="round"/><circle cx="24" cy="5" r="2.6" fill="#22d3ee"/><rect x="6" y="11" width="36" height="28" rx="13" fill="url(#fg)"/><rect x="11" y="16" width="26" height="18" rx="9" fill="#0b1030"/><ellipse class="eye" cx="19" cy="25" rx="3.2" ry="4.2" fill="#22d3ee"/><ellipse class="eye" cx="29" cy="25" rx="3.2" ry="4.2" fill="#22d3ee"/><rect x="2" y="21" width="4" height="10" rx="2" fill="#8b5cf6"/><rect x="42" y="21" width="4" height="10" rx="2" fill="#8b5cf6"/></svg>';
+  const UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+  const fab = $('#fab'), jv = $('#jarvis');
+  fab.innerHTML = `<span class="fi"><span class="f1">${FACE}</span><span class="f2">${UP}</span></span><span class="fl">Ask Jarvis</span>`;
+  const fl = $('.fl', fab), fine = matchMedia('(hover:hover) and (pointer:fine)');
+  let saved = null, ticking = false;
+  const here = () => { const r = jv.getBoundingClientRect(), vh = innerHeight, seen = Math.min(r.bottom, vh) - Math.max(r.top, 0); return seen > Math.min(r.height, vh) * 0.6; };
+  function sync() {
+    ticking = false;
+    const on = here();
+    if (on === fab.classList.contains('back')) return;
+    fab.classList.toggle('back', on); fl.textContent = on ? 'Back' : 'Ask Jarvis';
+    fab.setAttribute('aria-label', on ? 'Go back to where you were' : 'Open Jarvis AI');
+    if (!on) saved = null;
+  }
+  const queue = () => { if (!ticking) { ticking = true; requestAnimationFrame(sync); } };
+  addEventListener('scroll', queue, { passive: true }); addEventListener('resize', queue); addEventListener('hashchange', () => setTimeout(sync, 400));
+  fab.addEventListener('click', () => {
+    if (fab.classList.contains('back')) { const y = saved != null && saved < jv.getBoundingClientRect().top + scrollY ? saved : 0; saved = null; scrollTo({ top: y, behavior: 'smooth' }); return; }
+    saved = scrollY;
+    const vh = innerHeight, room = 92, r = jv.getBoundingClientRect();     /* keep the chat box clear of the button */
+    const top = r.bottom + scrollY - vh + room;                             /* chat input always stays visible, even on short screens */
+    scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    if (fine.matches) {                                                     /* on touch screens don't pop the keyboard up */
+      let done = false; const go = () => { if (!done) { done = true; const i = $('#jin'); i && i.focus({ preventScroll: true }); } };
+      addEventListener('scrollend', go, { once: true }); setTimeout(go, 900);
+    }
+  });
+  fab.classList.add('ex'); setTimeout(() => fab.classList.remove('ex'), 4500); sync();
   M.welcome = draw;
   window.addEventListener('storage', () => { try { hist = JSON.parse(localStorage.getItem('mydairy.chat') || '[]'); draw(); } catch (e) {} });
 })();
