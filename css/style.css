@@ -36,6 +36,7 @@ nav a em{margin-left:auto;font-style:normal;font-size:11px;background:var(--sf2)
 .btn.sm{padding:7px 14px;font-size:12.5px}
 .ib{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--sf);border:1px solid var(--bd);position:relative;transition:.25s}.ib:hover{transform:scale(1.08)}
 .burger{display:none}
+.sclose{display:none;position:absolute;top:16px;right:14px;width:40px;height:40px;border-radius:50%;place-items:center;z-index:2;color:var(--tx);background:var(--sf2);border:1px solid var(--bd);transition:transform .3s,background .25s,color .25s;-webkit-tap-highlight-color:transparent}.sclose:hover{background:var(--ac);color:#fff;border-color:transparent;transform:rotate(90deg)}.sclose:active{transform:scale(.88)}.sclose .ic{width:18px;height:18px}.sclose:focus-visible{border-radius:50%}
 /* main */
 .main{padding:18px 24px 90px;min-width:0}
 .top{display:flex;align-items:center;gap:14px;margin-bottom:18px}
@@ -186,7 +187,7 @@ input[type=range]{width:100%;accent-color:var(--ac)}
 .app{grid-template-columns:minmax(0,1fr)}
 .side{position:fixed;z-index:50;width:280px;max-width:86vw;transform:translateX(-102%);transition:.35s;background:var(--bg2)}
 .side.open{transform:none;box-shadow:0 0 0 100vmax rgba(0,0,0,.6)}
-.burger{display:grid}
+.burger{display:grid}.sclose{display:grid}
 .rail{grid-column:1;padding:0 14px 96px;grid-template-columns:minmax(0,1fr)}
 .main{padding:12px 14px 20px}
 .hero .s{grid-template-columns:minmax(0,1fr);padding:34px 22px 64px;align-content:center}
