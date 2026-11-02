@@ -19,18 +19,21 @@
   ];
   const norm = s => s.toLowerCase().replace(/[^a-z0-9\u0900-\u097f ]+/g, ' ').replace(/\s+/g, ' ').trim();
   const pick = a => a[Math.floor(Math.random() * a.length)];
-  let hist = [], busy = false;
-  try { hist = JSON.parse(localStorage.getItem('mydairy.chat') || '[]').slice(-20); } catch (e) {}
+  let hist = [], busy = false, missing = false, retry = 0;
+  const clean = a => (Array.isArray(a) ? a : []).filter(m => m && typeof m.text === 'string').map(m => ({ me: m.me ? 1 : 0, text: m.text, ids: Array.isArray(m.ids) ? m.ids : [] })).slice(-20);
+  try { hist = clean(JSON.parse(localStorage.getItem('mydairy.chat') || '[]')); } catch (e) {}
   const persist = () => { try { localStorage.setItem('mydairy.chat', JSON.stringify(hist.slice(-20))); } catch (e) {} };
 
-  const titles = ids => ids.map(id => { const c = M.by[id]; return `<button class="tc" data-open="${id}">${I('star')}${esc(c.t)} ${c.r.toFixed(1)}</button>`; }).join('');
+  const titles = ids => ids.map(id => { const c = M.by[id]; if (!c) { missing = true; return ''; } const r = Number(c.r); return `<button class="tc" data-open="${esc(String(id))}">${I('star')}${esc(c.t)}${r ? ' ' + r.toFixed(1) : ''}</button>`; }).join('');
   const fmt = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
   const name = () => M.S.name, nm = () => (M.S.name ? ' ' + M.S.name : ''), lock = () => (M.cloud && M.cloud.locked() ? { text: 'Only the diary owner can change it. Use Owner login first.', ids: [] } : null);
   function welcome() { return { me: 0, text: `Hello${nm()}! 👋\nHow can I help you today?\nAsk me for a pick, “add loki”, “my stats”, or any movie by name.`, ids: [] }; }
   function draw() {
     const log = $('#jlog'); if (!log) return;
-    log.innerHTML = [welcome()].concat(hist).map(m => `<div class="m ${m.me ? 'me' : ''}">${fmt(m.text)}${m.ids && m.ids.length ? '<div>' + titles(m.ids) + '</div>' : ''}</div>`).join('') + (busy ? '<div class="m typing"><i></i><i></i><i></i></div>' : '');
+    missing = false;
+    log.innerHTML = [welcome()].concat(hist).map(m => { try { return `<div class="m ${m.me ? 'me' : ''}">${fmt(m.text)}${m.ids && m.ids.length ? '<div>' + titles(m.ids) + '</div>' : ''}</div>`; } catch (e) { return ''; } }).join('') + (busy ? '<div class="m typing"><i></i><i></i><i></i></div>' : '');
     log.scrollTop = log.scrollHeight;
+    if (missing && retry++ < 3) setTimeout(draw, 2500);   /* catalogue may still be loading from the cloud */
   }
 
   /* ---------- offline brain ---------- */
@@ -80,7 +83,7 @@
   async function ask(text) {
     text = String(text || '').trim().slice(0, 600); if (!text || busy) return;
     hist.push({ me: 1, text }); busy = true; draw();
-    const t0 = Date.now(); let out = brain(text);
+    const t0 = Date.now(); let out = null; try { out = brain(text); } catch (e) {}
     if (!out) { try { out = await cloud(text); } catch (e) { out = { text: e.message || 'Could not reach the AI service.', ids: [] }; } }
     if (!out) out = { text: `I did not catch that. Try “recommend a thriller”, “add Dune”, “my watchlist” or “fun fact”. Add a Gemini key in Settings and I can chat about anything.`, ids: [] };
     await new Promise(r => setTimeout(r, Math.max(0, 650 - (Date.now() - t0))));
@@ -93,7 +96,7 @@
     $('#jarvis').addEventListener('click', e => { const b = e.target.closest('[data-q]'); if (b) ask(b.dataset.q); });
     draw();
   }
-  mount();
+  try { mount(); } catch (e) { console.error(e); }
   /* ---------- floating Jarvis button (bottom-right) ---------- */
   const FACE = '<svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><defs><linearGradient id="fg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#c7d2fe"/></linearGradient></defs><path d="M24 5v6" stroke="#22d3ee" stroke-width="2.4" stroke-linecap="round"/><circle cx="24" cy="5" r="2.6" fill="#22d3ee"/><rect x="6" y="11" width="36" height="28" rx="13" fill="url(#fg)"/><rect x="11" y="16" width="26" height="18" rx="9" fill="#0b1030"/><ellipse class="eye" cx="19" cy="25" rx="3.2" ry="4.2" fill="#22d3ee"/><ellipse class="eye" cx="29" cy="25" rx="3.2" ry="4.2" fill="#22d3ee"/><rect x="2" y="21" width="4" height="10" rx="2" fill="#8b5cf6"/><rect x="42" y="21" width="4" height="10" rx="2" fill="#8b5cf6"/></svg>';
   const UP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
@@ -125,5 +128,5 @@
   });
   fab.classList.add('ex'); setTimeout(() => fab.classList.remove('ex'), 4500); sync();
   M.welcome = draw;
-  window.addEventListener('storage', () => { try { hist = JSON.parse(localStorage.getItem('mydairy.chat') || '[]'); draw(); } catch (e) {} });
+  window.addEventListener('storage', () => { try { hist = clean(JSON.parse(localStorage.getItem('mydairy.chat') || '[]')); draw(); } catch (e) {} });
 })();
