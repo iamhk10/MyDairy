@@ -1,40 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1c1c1f"/>
-      <stop offset="1" stop-color="#040405"/>
-    </linearGradient>
-    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fde68a"/>
-      <stop offset=".5" stop-color="#f5c451"/>
-      <stop offset="1" stop-color="#b7791f"/>
-    </linearGradient>
-    <linearGradient id="bucket" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#2a2a2e"/>
-      <stop offset=".5" stop-color="#121214"/>
-      <stop offset="1" stop-color="#050506"/>
-    </linearGradient>
-    <radialGradient id="shine" cx=".3" cy=".15" r=".85">
-      <stop offset="0" stop-color="#fff" stop-opacity=".14"/>
-      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-    </radialGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b1f1d"/><stop offset=".45" stop-color="#05060c"/><stop offset="1" stop-color="#150a2e"/></linearGradient>
+    <radialGradient id="gG" cx=".02" cy=".02" r=".75"><stop offset="0" stop-color="#14f0b0" stop-opacity=".55"/><stop offset=".5" stop-color="#14f0b0" stop-opacity=".12"/><stop offset="1" stop-color="#14f0b0" stop-opacity="0"/></radialGradient>
+    <radialGradient id="gP" cx=".98" cy=".98" r=".75"><stop offset="0" stop-color="#a855f7" stop-opacity=".75"/><stop offset=".5" stop-color="#8b3df0" stop-opacity=".2"/><stop offset="1" stop-color="#8b3df0" stop-opacity="0"/></radialGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2cf5c0"/><stop offset=".35" stop-color="#2cf5c0" stop-opacity=".15"/><stop offset=".7" stop-color="#a855f7" stop-opacity=".25"/><stop offset="1" stop-color="#b86cff"/></linearGradient>
+    <radialGradient id="gloss" cx=".35" cy=".3" r=".7"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="wh" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cfc6ff"/></linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".95"/><stop offset="1" stop-color="#b9a4ff" stop-opacity=".8"/></linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2b2354"/><stop offset="1" stop-color="#0f0a26"/></linearGradient>
+    <linearGradient id="bodygloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".18"/><stop offset=".5" stop-color="#fff" stop-opacity=".02"/><stop offset="1" stop-color="#a78bfa" stop-opacity=".18"/></linearGradient>
+    <linearGradient id="play" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#bfa8ff"/></linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000" flood-opacity=".55"/><feDropShadow dx="0" dy="0" stdDeviation="9" flood-color="#9b6bff" flood-opacity=".35"/></filter>
   </defs>
-  <rect width="512" height="512" fill="url(#bg)"/>
-  <rect width="512" height="512" fill="url(#shine)"/>
-  <rect x="18" y="18" width="476" height="476" rx="90" fill="none" stroke="url(#gold)" stroke-width="5" opacity=".55"/>
-  <!-- popcorn -->
-  <g fill="url(#gold)">
-    <circle cx="196" cy="168" r="36"/>
-    <circle cx="256" cy="140" r="42"/>
-    <circle cx="316" cy="168" r="36"/>
-    <circle cx="226" cy="196" r="30"/>
-    <circle cx="286" cy="196" r="30"/>
+  <clipPath id="tc"><rect x="14" y="14" width="484" height="484" rx="118"/></clipPath>
+  <g clip-path="url(#tc)">
+    <rect width="512" height="512" fill="url(#bg)"/><rect width="512" height="512" fill="url(#gG)"/><rect width="512" height="512" fill="url(#gP)"/>
+    <ellipse cx="150" cy="70" rx="260" ry="120" fill="url(#gloss)" transform="rotate(-18 150 70)" opacity=".8"/>
   </g>
-  <!-- bucket -->
-  <path d="M142 214 L370 214 L342 396 Q339 414 320 414 L192 414 Q173 414 170 396 Z" fill="url(#bucket)" stroke="url(#gold)" stroke-width="4"/>
-  <path d="M196 218 L206 410 M256 218 L256 410 M316 218 L306 410" stroke="url(#gold)" stroke-width="14" stroke-opacity=".95"/>
-  <rect x="128" y="196" width="256" height="34" rx="12" fill="url(#gold)"/>
-  <!-- ticket stub -->
-  <path d="M116 428 Q116 418 126 418 L386 418 Q396 418 396 428 L396 436 Q386 436 386 446 Q386 456 396 456 L396 464 Q396 474 386 474 L126 474 Q116 474 116 464 L116 456 Q126 456 126 446 Q126 436 116 436 Z" fill="url(#gold)"/>
-  <text x="256" y="452" text-anchor="middle" font-family="Georgia, serif" font-size="30" font-weight="700" letter-spacing="6" fill="#050506">MYDAIRY</text>
+  <rect x="15.5" y="15.5" width="481" height="481" rx="116.5" fill="none" stroke="url(#rim)" stroke-width="4"/>
+  <rect x="19" y="19" width="474" height="474" rx="113" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width="2"/>
+  <g filter="url(#glow)">
+    <!-- body -->
+    <rect x="111" y="246" width="290" height="156" rx="22" fill="url(#body)" stroke="url(#edge)" stroke-width="3"/>
+    <rect x="111" y="246" width="290" height="156" rx="22" fill="url(#bodygloss)"/>
+    <!-- fixed bar -->
+    <g transform="translate(111,196)"><clipPath id="cb"><rect x="0" y="0" width="290" height="54" rx="10"/></clipPath><g clip-path="url(#cb)"><rect width="290" height="54" fill="#17122e"/><polygon points="-56,0 -22,0 -50,54 -84,54" fill="#17122e"/><polygon points="0,0 34,0 6,54 -28,54" fill="url(#wh)"/><polygon points="56,0 90,0 62,54 28,54" fill="#17122e"/><polygon points="112,0 146,0 118,54 84,54" fill="url(#wh)"/><polygon points="168,0 202,0 174,54 140,54" fill="#17122e"/><polygon points="224,0 258,0 230,54 196,54" fill="url(#wh)"/><polygon points="280,0 314,0 286,54 252,54" fill="#17122e"/><polygon points="336,0 370,0 342,54 308,54" fill="url(#wh)"/></g><rect width="290" height="54" rx="10" fill="none" stroke="url(#edge)" stroke-width="2.5"/></g>
+    <!-- open bar -->
+    <g transform="translate(111,196) rotate(-17 0 0) translate(0,-62)"><clipPath id="cb2"><rect x="0" y="0" width="290" height="54" rx="10"/></clipPath><g clip-path="url(#cb2)"><rect width="290" height="54" fill="#17122e"/><polygon points="-56,0 -22,0 -50,54 -84,54" fill="#17122e"/><polygon points="0,0 34,0 6,54 -28,54" fill="url(#wh)"/><polygon points="56,0 90,0 62,54 28,54" fill="#17122e"/><polygon points="112,0 146,0 118,54 84,54" fill="url(#wh)"/><polygon points="168,0 202,0 174,54 140,54" fill="#17122e"/><polygon points="224,0 258,0 230,54 196,54" fill="url(#wh)"/><polygon points="280,0 314,0 286,54 252,54" fill="#17122e"/><polygon points="336,0 370,0 342,54 308,54" fill="url(#wh)"/></g><rect width="290" height="54" rx="10" fill="none" stroke="url(#edge)" stroke-width="2.5"/></g>
+    <!-- play -->
+    <path d="M232 292 L232 362 Q232 372 241 367 L300 332 Q308 327 300 322 L241 287 Q232 282 232 292 Z" fill="url(#play)"/>
+  </g>
 </svg>
