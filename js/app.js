@@ -193,7 +193,20 @@
   $('#theme').addEventListener('click', () => setTheme());
   $('#bell').addEventListener('click', bell);
   $('#avatar').addEventListener('click', () => location.hash = '#/settings');
-  $('#burger').addEventListener('click', () => $('#side').classList.toggle('open'));
+  /* mobile menu: ☰ opens it; ✕, tapping outside, Esc or a swipe-left closes it */
+  const side = $('#side'), burger = $('#burger'), sclose = document.createElement('button');
+  sclose.className = 'sclose'; sclose.id = 'sclose'; sclose.type = 'button'; sclose.setAttribute('aria-label', 'Close menu'); sclose.innerHTML = I('x'); side.prepend(sclose);
+  burger.setAttribute('aria-expanded', 'false'); burger.setAttribute('aria-controls', 'side');
+  new MutationObserver(() => burger.setAttribute('aria-expanded', side.classList.contains('open'))).observe(side, { attributes: true, attributeFilter: ['class'] });
+  const menu = on => { side.classList.toggle('open', on); (on ? sclose : burger).focus({ preventScroll: true }); };
+  burger.addEventListener('click', () => menu(!side.classList.contains('open')));
+  sclose.addEventListener('click', () => menu(false));
+  document.addEventListener('click', e => { if (side.classList.contains('open') && !side.contains(e.target) && !burger.contains(e.target)) { e.preventDefault(); e.stopPropagation(); menu(false); } }, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && side.classList.contains('open') && !$('#dlg').open) menu(false); });
+  let sx = 0, sy = 0;
+  side.addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive: true });
+  side.addEventListener('touchend', e => { const t = e.changedTouches[0]; if (t.clientX - sx < -60 && Math.abs(t.clientY - sy) < 50) menu(false); }, { passive: true });
+  matchMedia('(min-width:901px)').addEventListener('change', e => { if (e.matches) side.classList.remove('open'); });
   $('#dlg').addEventListener('close', () => render());
   window.addEventListener('hashchange', () => { q = ''; $('#q').value = ''; render(); window.scrollTo({ top: 0 }); });
 
