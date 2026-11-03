@@ -20,9 +20,9 @@
   const norm = s => s.toLowerCase().replace(/[^a-z0-9\u0900-\u097f ]+/g, ' ').replace(/\s+/g, ' ').trim();
   const pick = a => a[Math.floor(Math.random() * a.length)];
   let hist = [], busy = false, missing = false, retry = 0;
-  const clean = a => (Array.isArray(a) ? a : []).filter(m => m && typeof m.text === 'string').map(m => ({ me: m.me ? 1 : 0, text: m.text, ids: Array.isArray(m.ids) ? m.ids : [] })).slice(-20);
-  try { hist = clean(JSON.parse(localStorage.getItem('mydairy.chat') || '[]')); } catch (e) {}
-  const persist = () => { try { localStorage.setItem('mydairy.chat', JSON.stringify(hist.slice(-20))); } catch (e) {} };
+  /* Jarvis chats are NOT saved anywhere: they live only in this tab's memory and vanish on reload.
+     (Answers still use the owner's diary.) Anything an older version saved is wiped here. */
+  try { localStorage.removeItem('mydairy.chat'); } catch (e) {}
 
   const titles = ids => ids.map(id => { const c = M.by[id]; if (!c) { missing = true; return ''; } const r = Number(c.r); return `<button class="tc" data-open="${esc(String(id))}">${I('star')}${esc(c.t)}${r ? ' ' + r.toFixed(1) : ''}</button>`; }).join('');
   const fmt = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
@@ -87,7 +87,7 @@
     if (!out) { try { out = await cloud(text); } catch (e) { out = { text: e.message || 'Could not reach the AI service.', ids: [] }; } }
     if (!out) out = { text: `I did not catch that. Try “recommend a thriller”, “add Dune”, “my watchlist” or “fun fact”. Add a Gemini key in Settings and I can chat about anything.`, ids: [] };
     await new Promise(r => setTimeout(r, Math.max(0, 650 - (Date.now() - t0))));
-    hist.push({ me: 0, text: out.text, ids: out.ids || [] }); busy = false; persist(); draw();
+    hist.push({ me: 0, text: out.text, ids: out.ids || [] }); busy = false; draw();
   }
 
   function mount() {
@@ -128,5 +128,4 @@
   });
   fab.classList.add('ex'); setTimeout(() => fab.classList.remove('ex'), 4500); sync();
   M.welcome = draw;
-  window.addEventListener('storage', () => { try { hist = clean(JSON.parse(localStorage.getItem('mydairy.chat') || '[]')); draw(); } catch (e) {} });
 })();

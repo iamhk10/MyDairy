@@ -11,12 +11,13 @@
   const T0 = Date.now(), DAY = 864e5;
   let S = (() => {
     try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.lib) return s; } catch (e) {}
-    return { name: '', theme: 'dark', acc: 0, key: '', tab: 'movies', bellRead: false, lib: {
+    return { name: '', theme: 'dark', acc: 0, key: '', tab: 'home', hv: 1, bellRead: false, lib: {
       inception: { st: 'watched', my: 9, at: T0 - 9 * DAY }, darkknight: { st: 'watched', my: 10, at: T0 - 7 * DAY }, chernobyl: { st: 'watched', fav: 1, my: 10, at: T0 - 5 * DAY },
       breakingbad: { st: 'watched', fav: 1, my: 10, at: T0 - 4 * DAY }, rickmorty: { st: 'watched', my: 9, at: T0 - 2 * DAY }, loki: { st: 'watched', fav: 1, my: 8, at: T0 - DAY },
       wanda: { st: 'watching', p: 38, at: T0 - 3600e3 }, stranger: { st: 'will', at: T0 - 6e5 }, dune2: { st: 'will', at: T0 - 5e5 } } };
   })();
   if (S.name === 'Himanshu') S.name = '';
+  if (!S.hv) { S.hv = 1; S.tab = 'home'; }          /* the new Home tab is the default landing tab */
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} window.MD && window.MD.cloud && window.MD.cloud.queue(); };
   const L = id => S.lib[id] || {}, fm = m => m >= 60 ? Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : '') : m + 'm';
   const mins = () => Object.entries(S.lib).reduce((a, [id, l]) => a + (by[id] ? (l.st === 'watched' ? by[id].m : l.st === 'watching' ? by[id].m * (l.p || 0) / 100 : 0) : 0), 0);
@@ -32,9 +33,13 @@
   }
 
   /* ---------- pieces ---------- */
-  const card = c => { const l = L(c.id); return `<article class="card" data-id="${c.id}" tabindex="0"><div class="poster ${c.p ? 'hasimg' : ''}" style="--h:${c.h}">${c.p ? `<img class="pimg" loading="lazy" alt="" src="${esc(c.p)}" onerror="this.remove()">` : ''}<i class="ini">${esc(c.t.replace(/^The /, '')[0])}</i><span class="rt">${I('star')}${c.r.toFixed(1)}</span><button class="add ${l.st === 'will' ? 'on' : ''}" data-act="will" aria-label="Toggle watchlist">${I(l.st === 'will' ? 'check' : 'plus')}</button><div class="pi"><div class="gs">${c.g.slice(0, 2).map(g => `<em>${esc(g)}</em>`).join('')}</div><b>${esc(c.t)}</b></div>${l.st === 'watching' ? `<div class="prog"><i style="width:${l.p || 0}%"></i></div>` : ''}</div></article>`; };
-  const row = l => `<div class="row">${l.map(card).join('')}</div>`;
-  const grid = l => l.length ? `<div class="grid">${l.map(card).join('')}</div>` : '';
+  const locked = () => !!(window.MD && window.MD.cloud && window.MD.cloud.locked());
+  const isOwner = () => !!(window.MD && window.MD.cloud && window.MD.cloud.owner);
+  const hue = t => { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+  /* na = true → no "+" on watched titles (and none for visitors, who cannot edit anyway) */
+  const card = (c, na) => { const l = L(c.id), noAdd = na && (l.st === 'watched' || locked()); return `<article class="card" data-id="${c.id}" tabindex="0"><div class="poster ${c.p ? 'hasimg' : ''}" style="--h:${c.h}">${c.p ? `<img class="pimg" loading="lazy" alt="" src="${esc(c.p)}" onerror="this.remove()">` : ''}<i class="ini">${esc(c.t.replace(/^The /, '')[0])}</i><span class="rt">${I('star')}${c.r.toFixed(1)}</span>${noAdd ? '' : `<button class="add ${l.st === 'will' ? 'on' : ''}" data-act="will" aria-label="Toggle watchlist">${I(l.st === 'will' ? 'check' : 'plus')}</button>`}<div class="pi"><div class="gs">${c.g.slice(0, 2).map(g => `<em>${esc(g)}</em>`).join('')}</div><b>${esc(c.t)}</b></div>${l.st === 'watching' ? `<div class="prog"><i style="width:${l.p || 0}%"></i></div>` : ''}</div></article>`; };
+  const row = (l, na) => `<div class="row">${l.map(c => card(c, na)).join('')}</div>`;
+  const grid = l => l.length ? `<div class="grid">${l.map(c => card(c)).join('')}</div>` : '';
   const sec = (ic, title, extra, body, more) => `<div class="sh"><h2>${I(ic)}${title}</h2>${extra || ''}${more ? `<a class="more" href="${more}">See All ${I('right')}</a>` : ''}</div>${body}`;
   const empty = m => `<div class="empty">${m}</div>`;
   const head = (t, s) => `<div class="sh"><h2>${t}</h2><span style="color:var(--mu)">${s || ''}</span></div>`;
@@ -44,15 +49,74 @@
     return C.filter(c => !L(c.id).st).map(c => [c, c.r + c.g.reduce((a, g) => a + (liked[g] || 0) * .35, 0)]).sort((a, b) => b[1] - a[1]).slice(0, n || 10).map(x => x[0]);
   }
 
+  /* ---------- Home tab: trending / popular titles the owner has NOT picked yet (TMDB through /api/tmdb) ---------- */
+  const EXT = { st: 'idle', d: null, at: 0, map: new Map() }, EXT_KEY = 'mydairy.ext', EXT_TTL = 6 * 36e5;
+  const GEN = { 28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime', 99: 'Documentary', 18: 'Drama', 10751: 'Family', 14: 'Fantasy', 36: 'History', 27: 'Horror', 10402: 'Music', 9648: 'Mystery', 10749: 'Romance', 878: 'Sci-Fi', 10770: 'TV Movie', 53: 'Thriller', 10752: 'War', 37: 'Western', 10759: 'Action', 10762: 'Kids', 10763: 'News', 10764: 'Reality', 10765: 'Sci-Fi', 10766: 'Soap', 10767: 'Talk', 10768: 'War' };
+  const nrm = t => String(t || '').toLowerCase().replace(/[^a-z0-9\u0900-\u097f]+/g, '');
+  const gnorm = g => ({ 'Science Fiction': 'Sci-Fi', 'Action & Adventure': 'Action', 'Sci-Fi & Fantasy': 'Sci-Fi' }[g] || g);
+  const extMap = (x, k) => ({ k: k || x.media_type, tid: x.id, t: x.title || x.name || '', y: String(x.release_date || x.first_air_date || '').slice(0, 4), p: x.poster_path ? 'https://image.tmdb.org/t/p/w342' + x.poster_path : '', d: String(x.overview || '').slice(0, 260), r: Math.round((x.vote_average || 0) * 10) / 10, v: x.vote_count || 0, g: (x.genre_ids || []).map(i => GEN[i]).filter(Boolean), pop: x.popularity || 0 });
+  function ownedFn() {                       /* is this TMDB title already anywhere in the diary (any status)? */
+    const ys = new Map(); C.forEach(c => { const k = nrm(c.t); (ys.get(k) || ys.set(k, new Set()).get(k)).add(String(c.y)); });
+    return x => { if (by['tm_' + x.k + '_' + x.tid]) return true; const set = ys.get(nrm(x.t)); if (!set) return false; if (!x.y || set.has('') || set.has(x.y)) return true; const n = +x.y; return set.has(String(n + 1)) || set.has(String(n - 1)); };
+  }
+  function taste() { const liked = {}; C.forEach(c => { const l = L(c.id); if (l.fav || l.my >= 8 || l.st === 'watched') c.g.forEach(g => { g = gnorm(g); liked[g] = (liked[g] || 0) + (l.fav ? 2 : 1); }); }); return liked; }
+  const extCard = x => {
+    const key = x.k + '_' + x.tid; EXT.map.set(key, x);
+    return `<article class="card" data-ext="${key}" tabindex="0"><div class="poster ${x.p ? 'hasimg' : ''}" style="--h:${hue(x.t)}">${x.p ? `<img class="pimg" loading="lazy" alt="" src="${esc(x.p)}" onerror="this.remove()">` : ''}<i class="ini">${esc(x.t.replace(/^The /, '')[0] || '?')}</i><span class="rt">${I('star')}${x.r.toFixed(1)}</span>${isOwner() ? `<button class="add" data-ext-add="${key}" aria-label="Add to watchlist">${I('plus')}</button>` : ''}<div class="pi"><div class="gs">${x.g.slice(0, 2).map(g => `<em>${esc(g)}</em>`).join('')}</div><b>${esc(x.t)}</b></div></div></article>`;
+  };
+  function extSections() {
+    const d = EXT.d; if (!d) return ''; EXT.map.clear();
+    const have = ownedFn(), liked = taste(), seen = new Set(), all = [];
+    const fresh = l => (l || []).filter(x => !have(x));
+    [d.tr, d.pm, d.pt, d.tm, d.tt].forEach(l => fresh(l).forEach(x => { const k = x.k + x.tid; if (!seen.has(k)) { seen.add(k); all.push(x); } }));
+    const picks = all.filter(x => x.v >= 40).map(x => [x, x.r + x.g.reduce((a, g) => a + (liked[gnorm(g)] || 0) * .35, 0) + Math.min(1.5, x.pop / 600)]).sort((a, b) => b[1] - a[1]).slice(0, 14).map(a => a[0]);
+    const shown = new Set(picks.map(x => x.k + x.tid));                    /* a title appears in one section only */
+    const rest = l => { const r = fresh(l).filter(x => !shown.has(x.k + x.tid)); if (r.length < 3) return []; r.slice(0, 16).forEach(x => shown.add(x.k + x.tid)); return r; };
+    const block = (ic, title, l) => l.length ? sec(ic, title, '', `<div class="row">${l.slice(0, 16).map(extCard).join('')}</div>`) : '';
+    return block('spark', S.name ? `Picked for ${esc(S.name)}` : 'Most related for you', picks) + block('trend', 'Trending this week', rest(d.tr)) + block('film', 'Popular movies', rest(d.pm)) + block('tv', 'Popular series', rest(d.pt)) + block('star', 'Top rated movies', rest(d.tm)) + block('star', 'Top rated series', rest(d.tt));
+  }
+  const extSkeleton = () => `<div class="sh"><h2>${I('spark')}Finding fresh picks for you…</h2></div><div class="skr">${'<i></i>'.repeat(8)}</div><div class="sh"><h2>${I('trend')}Trending this week</h2></div><div class="skr">${'<i></i>'.repeat(8)}</div>`;
+  const paintExt = () => { if (cur() === 'home' && !q && S.tab === 'home') render(); };
+  async function loadExt() {
+    if (EXT.st === 'loading') return;
+    if (EXT.d && Date.now() - EXT.at < EXT_TTL) return;
+    if (!EXT.d && EXT.st === 'fail' && Date.now() - EXT.at < 3e5) return;
+    if (!EXT.d) { try { const c = JSON.parse(localStorage.getItem(EXT_KEY)); if (c && c.d && Date.now() - c.at < EXT_TTL) { EXT.d = c.d; EXT.at = c.at; EXT.st = 'ok'; paintExt(); return; } } catch (e) {} }
+    EXT.st = 'loading';
+    try {
+      const get = p => fetch('api/tmdb?path=' + encodeURIComponent(p), { cache: 'no-store' }).then(r => { if (!r.ok) throw new Error('tmdb ' + r.status); return r.json(); }).then(j => j.results || []).catch(() => []);
+      const [tr, pm, pt, tm, tt] = await Promise.all([get('/trending/all/week'), get('/movie/popular'), get('/tv/popular'), get('/movie/top_rated'), get('/tv/top_rated')]);
+      const mp = (l, k) => l.map(x => extMap(x, k || x.media_type)).filter(x => (x.k === 'movie' || x.k === 'tv') && x.t);
+      const d = { tr: mp(tr), pm: mp(pm, 'movie'), pt: mp(pt, 'tv'), tm: mp(tm, 'movie'), tt: mp(tt, 'tv') };
+      if (!Object.values(d).some(l => l.length)) throw new Error('empty');
+      EXT.d = d; EXT.at = Date.now(); EXT.st = 'ok'; try { localStorage.setItem(EXT_KEY, JSON.stringify({ at: EXT.at, d })); } catch (e) {}
+    } catch (e) { if (EXT.d) EXT.at = Date.now() - EXT_TTL + 3e5; else { EXT.st = 'fail'; EXT.at = Date.now(); } }
+    paintExt();
+  }
+  function openExt(key) {
+    const x = EXT.map.get(key); if (!x) return; const d = $('#dlg');
+    d.innerHTML = `<div class="dh" style="--h:${hue(x.t)}"><button class="x" data-close aria-label="Close">${I('x')}</button><h2>${esc(x.t)}</h2><p>${x.y ? x.y + ' • ' : ''}${x.k === 'tv' ? 'TV Show' : 'Movie'} • ${I('star')} ${x.r.toFixed(1)}</p></div><div class="db">${x.p ? `<img class="xp" src="${esc(x.p)}" alt="" onerror="this.remove()">` : ''}<p>${esc(x.d) || 'No description available yet.'}</p><div class="gs">${x.g.map(g => `<em style="background:var(--sf2)">${esc(g)}</em>`).join('')}</div>${isOwner() ? `<button class="btn p" data-ext-add="${key}">${I('plus')} Add to Watchlist</button>` : `<p style="color:var(--mu)">Only the diary owner can add titles.</p>`}</div>`;
+    if (!d.open) d.showModal();
+  }
+  async function addExt(key, btn) {
+    const x = EXT.map.get(key), cl = window.MD && window.MD.cloud; if (!x) return;
+    if (!cl || !cl.owner) { toast('Owner login required to add titles'); return; }
+    if (btn) btn.disabled = true;
+    try { await cl.addTmdb(x.k, x.tid); if ($('#dlg').open) $('#dlg').close(); } catch (er) { toast(er.message || 'Could not add'); if (btn) btn.disabled = false; }
+  }
+
   /* ---------- views ---------- */
   let slide = 0, timer = null, genre = 'All', sort = 'rating', q = '';
   const V = {
     home() {
-      if (!C.length) return empty('Your diary is empty. ' + (window.MD && window.MD.cloud && window.MD.cloud.owner ? 'Use “Add title” to search OMDb / TMDB.' : 'The owner has not added any titles yet.'));
+      const nothing = !C.length, homeTab = S.tab === 'home';
+      if (nothing && !(homeTab && (EXT.d || EXT.st !== 'fail'))) return empty('Your diary is empty. ' + (window.MD && window.MD.cloud && window.MD.cloud.owner ? 'Use “Add title” to search OMDb / TMDB.' : 'The owner has not added any titles yet.'));
       const top = [...pool()].sort((a, b) => b.tr - a.tr).slice(0, 4);
-      const hero = `<section class="hero" aria-roledescription="carousel">${top.map((c, i) => `<div class="s ${i === slide ? 'on' : ''}" data-id="${c.id}" style="--h:${c.h}"><div class="hc"><div class="badge">${c.type === 'movie' ? 'MOVIE' : '<b>▶</b> SERIES'}</div><h1 class="ht ${c.t.length > 20 ? 'l' : ''}">${esc(c.t.toUpperCase())}</h1><p>${esc(c.d)}</p><div class="meta">${I('star')} ${c.r.toFixed(1)}/10 <em>${esc(c.g[0])}</em><em>${c.y}</em><em>${fm(c.m > 4000 ? 60 : c.m)}</em></div><div class="acts"><button class="btn p" data-act="watching">${I('play')} Watch Now</button><button class="btn" data-act="will">${I('plus')} Add to Watchlist</button></div></div><div class="art">${c.p ? `<img src="${esc(c.p)}" alt="" onerror="this.remove()">` : `<i>${esc(c.t.replace(/^The /, '')[0])}</i>`}</div></div>`).join('')}<button class="hn l" data-hero="-1" aria-label="Previous">${I('left')}</button><button class="hn r" data-hero="1" aria-label="Next">${I('right')}</button><div class="dots">${top.map((_, i) => `<button class="${i === slide ? 'on' : ''}" data-dot="${i}" aria-label="Slide ${i + 1}"></button>`).join('')}</div></section>`;
+      const hero = nothing ? '' : `<section class="hero" aria-roledescription="carousel">${top.map((c, i) => `<div class="s ${i === slide ? 'on' : ''}" data-id="${c.id}" style="--h:${c.h}"><div class="hc"><div class="badge">${c.type === 'movie' ? 'MOVIE' : '<b>▶</b> SERIES'}</div><h1 class="ht ${c.t.length > 20 ? 'l' : ''}">${esc(c.t.toUpperCase())}</h1><p>${esc(c.d)}</p><div class="meta">${I('star')} ${c.r.toFixed(1)}/10 <em>${esc(c.g[0])}</em><em>${c.y}</em><em>${fm(c.m > 4000 ? 60 : c.m)}</em></div><div class="acts"><button class="btn p" data-act="watching">${I('play')} Watch Now</button><button class="btn" data-act="will">${I('plus')} Add to Watchlist</button></div></div><div class="art">${c.p ? `<img src="${esc(c.p)}" alt="" onerror="this.remove()">` : `<i>${esc(c.t.replace(/^The /, '')[0])}</i>`}</div></div>`).join('')}<button class="hn l" data-hero="-1" aria-label="Previous">${I('left')}</button><button class="hn r" data-hero="1" aria-label="Next">${I('right')}</button><div class="dots">${top.map((_, i) => `<button class="${i === slide ? 'on' : ''}" data-dot="${i}" aria-label="Slide ${i + 1}"></button>`).join('')}</div></section>`;
       const pop = [...pool()].sort((a, b) => b.pop - a.pop), tr = [...pool()].sort((a, b) => b.tr - a.tr);
-      return hero + sec('star', 'Popular on MyDairy', `<span class="pill">${I('flame')} Trending Now</span>`, row(pop)) + sec('trend', 'Trending Now', '', row(tr), '#/discover') + sec('spark', S.name ? `Picked for ${esc(S.name)}` : 'Picked for you', '', row(recs(10)));
+      const base = sec('star', 'Popular on MyDairy', `<span class="pill">${I('flame')} Trending Now</span>`, row(pop, 1)) + sec('trend', 'Trending Now', '', row(tr, 1), '#/discover') + sec('spark', S.name ? `Picked for ${esc(S.name)}` : 'Picked for you', '', row(recs(10)));
+      if (homeTab) { const e = EXT.d ? extSections() : (EXT.st === 'fail' ? '' : extSkeleton()); if (e) return (nothing ? '' : hero) + `<div id="ext">${e}</div>`; }
+      return nothing ? empty('Your diary is empty.') : hero + base;
     },
     discover() {
       const gs = ['All', ...new Set(C.flatMap(c => c.g))].sort((a, b) => a === 'All' ? -1 : b === 'All' ? 1 : a.localeCompare(b));
@@ -80,7 +144,7 @@
       const s = stats(), gs = {}; s.w.forEach(c => c.g.forEach(g => gs[g] = (gs[g] || 0) + 1));
       const rated = Object.values(S.lib).filter(l => l.my), avg = rated.length ? (rated.reduce((a, l) => a + l.my, 0) / rated.length).toFixed(1) : '–', mx = Math.max(1, ...Object.values(gs));
       const cnt = k => Object.values(S.lib).filter(l => l.st === k).length;
-      return head('Statistics') + `<div class="cols"><div class="big"><b>${s.movies}</b>Movies watched</div><div class="big"><b>${s.series}</b>Series & anime</div><div class="big"><b>${s.hours}h</b>Time watched</div><div class="big"><b>${avg}</b>Your average rating</div><div class="big"><b>${cnt('watching')}</b>In progress</div><div class="big"><b>${cnt('will')}</b>In watchlist</div></div>` + sec('chart', 'Favourite genres', '', Object.entries(gs).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([g, n]) => `<div class="gb"><span>${esc(g)}</span><div class="bar"><i style="width:${n / mx * 100}%"></i></div><b>${n}</b></div>`).join('') || empty('Mark titles as watched to see your taste.'));
+      return `<div class="sh"><h2>Statistics</h2><button class="btn p sm" data-do="statjpg" style="margin-left:auto">${I('download')} Download JPG</button></div>` + `<div class="cols"><div class="big"><b>${s.movies}</b>Movies watched</div><div class="big"><b>${s.series}</b>Series & anime</div><div class="big"><b>${s.hours}h</b>Time watched</div><div class="big"><b>${avg}</b>Your average rating</div><div class="big"><b>${cnt('watching')}</b>In progress</div><div class="big"><b>${cnt('will')}</b>In watchlist</div></div>` + sec('chart', 'Favourite genres', '', Object.entries(gs).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([g, n]) => `<div class="gb"><span>${esc(g)}</span><div class="bar"><i style="width:${n / mx * 100}%"></i></div><b>${n}</b></div>`).join('') || empty('Mark titles as watched to see your taste.'));
     },
     settings() {
       return head('Settings') + `<div class="db" style="max-width:520px;padding:0"><label class="field">Display name (optional)<input id="sName" value="${esc(S.name)}" maxlength="30" placeholder="Leave empty to stay anonymous"></label><label class="field">Gemini API key (optional)<input id="sKey" type="password" value="${esc(S.key)}" placeholder="AIza…" autocomplete="off"><small>Jarvis already answers offline. Add a free key from aistudio.google.com/apikey to let him chat about anything. It stays only on this device.</small></label><div class="field">Accent colour<div class="chips">${ACC.map((a, i) => `<button class="${i === S.acc ? 'on' : ''}" data-acc="${i}">${a[0]}</button>`).join('')}</div></div><div class="acts"><button class="btn" data-do="theme">${I(S.theme === 'dark' ? 'sun' : 'moon')} Switch theme</button><button class="btn" data-do="reset">${I('x')} Reset diary</button></div></div>`;
@@ -88,7 +152,7 @@
     search() { const n = q.toLowerCase(), l = C.filter(c => (c.t + ' ' + c.g.join(' ') + ' ' + c.y + ' ' + TYPE[c.type]).toLowerCase().includes(n)); return head('Results for “' + esc(q) + '”', l.length + ' found') + (l.length ? grid(l) : empty('No match. Try a genre like “comedy” or a year.')); }
   };
   const NAV = [['home', 'home', 'Home'], ['discover', 'compass', 'Discover'], ['movies', 'film', 'Movies'], ['tv', 'tv', 'TV Shows'], ['anime', 'anime', 'Anime'], ['favorites', 'heart', 'Favorites'], ['watchlist', 'bookmark', 'Watchlist'], ['downloads', 'download', 'Downloads'], ['history', 'history', 'History'], ['playlists', 'list', 'Playlists'], ['statistics', 'chart', 'Statistics']];
-  const TABS = [['movies', 'film', 'Movies'], ['tv', 'tv', 'TV Shows'], ['anime', 'anime', 'Anime'], ['trending', 'flame', 'Trending'], ['popular', 'star', 'Popular']];
+  const TABS = [['home', 'home', 'Home'], ['movies', 'film', 'Movies'], ['tv', 'tv', 'TV Shows'], ['anime', 'anime', 'Anime'], ['trending', 'flame', 'Trending'], ['popular', 'star', 'Popular']];
 
   function chrome() {
     const route = cur();
@@ -102,7 +166,9 @@
   function render() {
     clearInterval(timer); const r = q ? 'search' : cur();
     $('#view').innerHTML = V[r](); chrome(); rail();
+    document.body.classList.toggle('nojv', !(r === 'home' && S.tab === 'home'));     /* Jarvis (box + floating button) lives on Home only */
     if (r === 'home') timer = setInterval(() => hero(1), 6500);
+    if (r === 'home' && S.tab === 'home') loadExt();
     $('#side').classList.remove('open');
   }
   function hero(d, to) {
@@ -118,6 +184,48 @@
     $('#cont').innerHTML = `<h3>${I('play')}Continue Watching<a href="#/watchlist">See All ›</a></h3>` + (w ? `<div class="cw" data-id="${w.id}"><div class="th" style="--h:${w.h}"><button data-act="log" aria-label="Log +10% progress">${I('play')}</button></div><div style="flex:1;min-width:0"><b>${esc(w.t)}</b><small>${L(w.id).p || 0}% done • ${fm(Math.round(w.m * (100 - (L(w.id).p || 0)) / 100))} left</small><div class="bar"><i style="width:${L(w.id).p || 0}%"></i></div></div></div>` : `<p style="color:var(--mu)">Nothing in progress. Press “Watch Now” on any title.</p>`);
     $('#stats').innerHTML = `<h3>${I('chart')}Your Stats<a href="#/statistics">See More ›</a></h3><div class="st"><div>${I('film')}<b data-n="${s.movies}">0</b><small>Movies</small></div><div>${I('tv')}<b data-n="${s.series}">0</b><small>Series</small></div><div>${I('clock')}<b><span data-n="${s.hours}">0</span>h</b><small>Watched</small></div></div>`;
     $$('[data-n]').forEach(e => count(e, +e.dataset.n));
+  }
+
+  /* ---------- statistics → JPG (works for everyone, no login) ---------- */
+  async function statsJpg() {
+    const s = stats(), gs = {}; s.w.forEach(c => c.g.forEach(g => gs[g] = (gs[g] || 0) + 1));
+    const rated = Object.values(S.lib).filter(l => l.my), avg = rated.length ? (rated.reduce((a, l) => a + l.my, 0) / rated.length).toFixed(1) : '–';
+    const cnt = k => Object.values(S.lib).filter(l => l.st === k).length, genres = Object.entries(gs).sort((a, b) => b[1] - a[1]).slice(0, 8), mx = Math.max(1, ...genres.map(g => g[1]));
+    const tiles = [[s.movies, 'Movies watched'], [s.series, 'Series & anime'], [s.hours + 'h', 'Time watched'], [avg, 'Average rating'], [cnt('watching'), 'In progress'], [cnt('will'), 'In watchlist']];
+    const W = 1080, P = 64, TH = 190, GAP = 24, gy0 = 674, H = gy0 + 110 + Math.max(1, genres.length) * 62 + 130;
+    const A = ACC[S.acc] || ACC[0], F = '"Plus Jakarta Sans","Segoe UI",system-ui,sans-serif';
+    try { await Promise.all([document.fonts.load('800 40px "Plus Jakarta Sans"'), document.fonts.load('600 24px "Plus Jakarta Sans"')]); } catch (e) {}
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+    const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+    let bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#0b0720'); bg.addColorStop(1, '#1a0b45'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    [[0, 0, A[1]], [W, H * .55, A[2]], [W * .5, H, '#22d3ee']].forEach(([x, y, c]) => { const r = g.createRadialGradient(x, y, 0, x, y, 620); r.addColorStop(0, c + '66'); r.addColorStop(1, c + '00'); g.fillStyle = r; g.fillRect(0, 0, W, H); });
+    g.textBaseline = 'alphabetic';
+    const lg = g.createLinearGradient(P, 0, P + 360, 0); lg.addColorStop(0, '#c4b5fd'); lg.addColorStop(.55, A[1]); lg.addColorStop(1, '#22d3ee');
+    g.fillStyle = lg; g.font = '800 76px ' + F; g.fillText('MyDairy', P, 150);
+    g.fillStyle = '#a59cc9'; g.font = '600 28px ' + F; g.fillText('Watch • Track • Remember', P, 196);
+    g.textAlign = 'right'; g.fillStyle = '#fff'; g.font = '800 34px ' + F; g.fillText('My Statistics', W - P, 138); g.fillStyle = '#a59cc9'; g.font = '600 26px ' + F; g.fillText(new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }), W - P, 182); g.textAlign = 'left';
+    const tw = (W - 2 * P - 2 * GAP) / 3;
+    tiles.forEach((t, i) => {
+      const x = P + (i % 3) * (tw + GAP), y = 250 + Math.floor(i / 3) * (TH + GAP);
+      rr(x, y, tw, TH, 30); const f = g.createLinearGradient(x, y, x + tw, y + TH); f.addColorStop(0, 'rgba(255,255,255,.12)'); f.addColorStop(1, 'rgba(255,255,255,.04)'); g.fillStyle = f; g.fill(); g.strokeStyle = 'rgba(167,139,250,.35)'; g.lineWidth = 2; g.stroke();
+      g.textAlign = 'center'; const tg = g.createLinearGradient(x, y, x + tw, y); tg.addColorStop(0, '#fff'); tg.addColorStop(1, '#22d3ee'); g.fillStyle = tg; g.font = '800 70px ' + F; g.fillText(String(t[0]), x + tw / 2, y + 100);
+      g.fillStyle = '#b9b0e0'; g.font = '600 25px ' + F; g.fillText(t[1], x + tw / 2, y + 150); g.textAlign = 'left';
+    });
+    g.fillStyle = '#fff'; g.font = '800 38px ' + F; g.fillText('Favourite genres', P, gy0 + 50);
+    if (!genres.length) { g.fillStyle = '#a59cc9'; g.font = '600 28px ' + F; g.fillText('Mark titles as watched to see the taste chart.', P, gy0 + 118); }
+    genres.forEach(([n, c], i) => {
+      const y = gy0 + 90 + i * 62, bx = P + 230, bw = W - 2 * P - 230 - 80;
+      g.fillStyle = '#e5defd'; g.font = '700 27px ' + F; g.fillText(n.length > 14 ? n.slice(0, 13) + '…' : n, P, y + 30);
+      rr(bx, y + 8, bw, 26, 13); g.fillStyle = 'rgba(255,255,255,.1)'; g.fill();
+      const w = Math.max(26, bw * c / mx), bf = g.createLinearGradient(bx, 0, bx + w, 0); bf.addColorStop(0, A[1]); bf.addColorStop(1, '#22d3ee'); rr(bx, y + 8, w, 26, 13); g.fillStyle = bf; g.fill();
+      g.textAlign = 'right'; g.fillStyle = '#fff'; g.font = '800 27px ' + F; g.fillText(String(c), W - P, y + 30); g.textAlign = 'left';
+    });
+    g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(P, H - 110, W - 2 * P, 2);
+    g.textAlign = 'center'; g.fillStyle = '#a59cc9'; g.font = '600 26px ' + F; g.fillText('Made by ΣTΣЯПITY', W / 2, H - 56); g.textAlign = 'left';
+    cv.toBlob(b => {
+      if (!b) { toast('Could not create the image'); return; }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'MyDairy-Statistics-' + new Date().toISOString().slice(0, 10) + '.jpg'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast('Statistics saved as JPG ✓');
+    }, 'image/jpeg', .93);
   }
 
   /* ---------- actions ---------- */
@@ -154,6 +262,8 @@
   document.addEventListener('click', e => {
     const t = e.target, g = s => t.closest(s);
     if (g('[data-close]')) { $('#dlg').close(); return; }
+    let ex; if ((ex = g('[data-ext-add]'))) { e.stopPropagation(); addExt(ex.dataset.extAdd, ex); return; }
+    if ((ex = g('[data-ext]'))) { openExt(ex.dataset.ext); return; }
     if (t === $('#dlg')) { $('#dlg').close(); return; }
     let el;
     if ((el = g('[data-act]'))) { const id = (g('[data-id]') || {}).dataset?.id; if (id) { e.stopPropagation(); act(id, el.dataset.act, +el.dataset.v || 0); if (el.dataset.act === 'watching' && g('.hero')) open(id); } return; }
@@ -168,6 +278,7 @@
       e.preventDefault(); const k = el.dataset.do;
       if (k === 'accent') cycleAccent();
       if (k === 'theme') setTheme();
+      if (k === 'statjpg') statsJpg();
       if (k === 'export') download('mydairy-backup.json', JSON.stringify(S, null, 2));
       if (k === 'import') $('#imp').click();
       if (k === 'reset') reset();
@@ -187,7 +298,7 @@
   });
   document.addEventListener('keydown', e => {
     if (e.key === '/' && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); $('#q').focus(); }
-    if (e.key === 'Enter' && e.target.matches?.('.card')) open(e.target.dataset.id);
+    if (e.key === 'Enter' && e.target.matches?.('.card')) { if (e.target.dataset.ext) openExt(e.target.dataset.ext); else if (e.target.dataset.id) open(e.target.dataset.id); }
   });
   $('#q').addEventListener('input', e => { q = e.target.value.trim(); render(); });
   $('#theme').addEventListener('click', () => setTheme());
