@@ -325,5 +325,8 @@
   $('#premIc').innerHTML = I('crown'); $('#sIc').innerHTML = I('search'); $('#inIc').innerHTML = I('download'); $('#sunIc').innerHTML = I('sun'); $('#moonIc').innerHTML = I('moon');
   $('#bellIc').innerHTML = I('bell'); $('#burger').innerHTML = I('menu');
   applyLook(); render();
+  /* app feel: long-press on a poster/card must not open the browser's image menu (Chrome/TWA) */
+  document.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('img,.card,.hero,.hl .it,.cw,.ar,.xp') && !e.target.closest('input,textarea')) e.preventDefault(); });
+  document.addEventListener('dragstart', e => { if (e.target.tagName === 'IMG') e.preventDefault(); });
   window.MD = { setCatalog, upsert, removeItem, reset, setLib: o => { S.lib = o; }, C, by, get S() { return S; }, save, open, render, toast, esc, I, act, L, stats, recs, fm };
 })();
