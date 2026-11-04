@@ -257,3 +257,8 @@ dialog.adlg .x{z-index:6;background:rgba(255,255,255,.1);border:1px solid rgba(2
 @media(max-width:560px){dialog.adlg{width:100vw;max-width:100vw;height:92dvh;margin:auto 0 0;border-radius:26px 26px 0 0}.ad-top{padding:18px 60px 4px 16px}.ad-top h2{font-size:20px}.ad-top p{font-size:12px}.ad-tools{padding:10px 14px 0}.ad-meta{padding:6px 16px 6px}.ad-list{padding:4px 12px 14px}.ad-search{height:50px}}
 
 @media(prefers-reduced-motion:reduce){.fab{transition:none}}
+
+/* app feel: no browser long-press menu / image save sheet on posters and cards */
+.card,.card *,.hero,.hero *,.row img,.grid img,.hl .it,.hl .it *,.cw,.cw *,img{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
+.ad-list img,.ar img,.xp{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
+input,textarea{-webkit-user-select:text;user-select:text}
