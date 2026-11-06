@@ -61,7 +61,7 @@
   function toMD(x) {
     const tags = x.tags || [], r = +x.rating || 0, tv = x.type === 'series';
     const g = [...new Set([...(x.genres || []), ...tags.map(t => TAGG[t]).filter(Boolean)])].slice(0, 5);
-    return { id: x.id, t: x.title, y: parseInt(x.year, 10) || '', type: tags.includes('anime') ? 'anime' : tv ? 'tv' : 'movie', g: g.length ? g : ['Unsorted'], r, h: hue(x.title), pop: r * 10, tr: r * 10 + (x.fav ? 8 : 0) + (Date.parse(x.added) || 0) / 1e13, m: tv ? (x.runtime || 45) * (x.episodes || (x.seasons || 1) * 8) : (x.runtime || 110), d: x.overview || '', p: safe(x.poster), cloud: 1 };
+    return { id: x.id, t: x.title, y: parseInt(x.year, 10) || '', type: tags.includes('anime') ? 'anime' : tv ? 'tv' : 'movie', g: g.length ? g : ['Unsorted'], r, h: hue(x.title), pop: r * 10, tr: r * 10 + (x.fav ? 8 : 0) + (Date.parse(x.added) || 0) / 1e13, m: tv ? (x.runtime || 45) * (x.episodes || (x.seasons || 1) * 8) : (x.runtime || 110), d: x.overview || '', p: safe(x.poster), tk: tv ? 'tv' : 'movie', tm: x.tmdb || '', im: x.imdb || '', cloud: 1 };
   }
   const libOf = x => ({ st: x.status || 'will', fav: x.fav ? 1 : 0, my: Math.round(+x.myRating || 0) || undefined, p: x.status === 'watched' ? 100 : x.status === 'watching' ? (x.curE && x.episodes ? Math.min(95, Math.round(x.curE / x.episodes * 100)) : 10) : 0, at: Date.parse(x.updated || x.added) || Date.now() });
   function apply(arr) {

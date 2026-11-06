@@ -37,7 +37,7 @@
   const isOwner = () => !!(window.MD && window.MD.cloud && window.MD.cloud.owner);
   const hue = t => { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
   /* na = true → no "+" on watched titles (and none for visitors, who cannot edit anyway) */
-  const card = (c, na) => { const l = L(c.id), noAdd = na && (l.st === 'watched' || locked()); return `<article class="card" data-id="${c.id}" tabindex="0"><div class="poster ${c.p ? 'hasimg' : ''}" style="--h:${c.h}">${c.p ? `<img class="pimg" loading="lazy" alt="" src="${esc(c.p)}" onerror="this.remove()">` : ''}<i class="ini">${esc(c.t.replace(/^The /, '')[0])}</i><span class="rt">${I('star')}${c.r.toFixed(1)}</span>${noAdd ? '' : `<button class="add ${l.st === 'will' ? 'on' : ''}" data-act="will" aria-label="Toggle watchlist">${I(l.st === 'will' ? 'check' : 'plus')}</button>`}<div class="pi"><div class="gs">${c.g.slice(0, 2).map(g => `<em>${esc(g)}</em>`).join('')}</div><b>${esc(c.t)}</b></div>${l.st === 'watching' ? `<div class="prog"><i style="width:${l.p || 0}%"></i></div>` : ''}</div></article>`; };
+  const card = (c, na) => { const l = L(c.id), noAdd = na && (l.st === 'watched' || locked()); return `<article class="card" data-id="${c.id}" tabindex="0"><div class="poster ${c.p ? 'hasimg' : ''}" style="--h:${c.h}">${c.p ? `<img class="pimg" loading="lazy" alt="" src="${esc(c.p)}" onerror="this.remove()">` : ''}<i class="ini">${esc(c.t.replace(/^The /, '')[0])}</i><span class="rt">${I('star')}${c.r.toFixed(1)}</span>${noAdd ? '' : `<button class="add ${l.st === 'will' ? 'on' : ''}" data-act="will" aria-label="Toggle watchlist">${I(l.st === 'will' ? 'check' : 'plus')}</button>`}${trRef(c) ? trBtn(`data-trail="L:${c.id}"`, noAdd) : ''}<div class="pi"><div class="gs">${c.g.slice(0, 2).map(g => `<em>${esc(g)}</em>`).join('')}</div><b>${esc(c.t)}</b></div>${l.st === 'watching' ? `<div class="prog"><i style="width:${l.p || 0}%"></i></div>` : ''}</div></article>`; };
   const row = (l, na) => `<div class="row">${l.map(c => card(c, na)).join('')}</div>`;
   const grid = l => l.length ? `<div class="grid">${l.map(c => card(c)).join('')}</div>` : '';
   const sec = (ic, title, extra, body, more) => `<div class="sh"><h2>${I(ic)}${title}</h2>${extra || ''}${more ? `<a class="more" href="${more}">See All ${I('right')}</a>` : ''}</div>${body}`;
@@ -60,9 +60,76 @@
     return x => { if (by['tm_' + x.k + '_' + x.tid]) return true; const set = ys.get(nrm(x.t)); if (!set) return false; if (!x.y || set.has('') || set.has(x.y)) return true; const n = +x.y; return set.has(String(n + 1)) || set.has(String(n - 1)); };
   }
   function taste() { const liked = {}; C.forEach(c => { const l = L(c.id); if (l.fav || l.my >= 8 || l.st === 'watched') c.g.forEach(g => { g = gnorm(g); liked[g] = (liked[g] || 0) + (l.fav ? 2 : 1); }); }); return liked; }
+
+  /* ---------- trailers (official YouTube trailers via TMDB; nothing loads until you tap / hover) ---------- */
+  const TR_KEY = 'mydairy.tr', TR_TTL = 7 * 864e5, TR_NEG = 864e5, TRP = {};
+  let TR = {}; try { TR = JSON.parse(localStorage.getItem(TR_KEY) || '{}') || {}; } catch (e) { TR = {}; }
+  const trSave = () => { try { const k = Object.keys(TR); if (k.length > 500) k.slice(0, 150).forEach(x => delete TR[x]); localStorage.setItem(TR_KEY, JSON.stringify(TR)); } catch (e) {} };
+  const trJson = (p, extra) => fetch('api/tmdb?path=' + encodeURIComponent(p) + (extra || '')).then(r => r.ok ? r.json() : null).catch(() => null);
+  const trPick = l => { l = (l || []).filter(v => v && v.site === 'YouTube' && /^[\w-]{6,15}$/.test(v.key || '')); const rk = v => (v.type === 'Trailer' ? 0 : v.type === 'Teaser' ? 2 : v.type === 'Clip' ? 4 : 9) + (v.official ? 0 : 1); l.sort((a, b) => rk(a) - rk(b)); return l[0] && (l[0].type === 'Trailer' || l[0].type === 'Teaser' || l[0].type === 'Clip') ? l[0].key : ''; };
+  function trRef(c) {
+    if (!c) return null;
+    let m;
+    if (c.tm && (m = /^(movie|tv)\/(\d{1,9})$/.exec(c.tm))) return { k: m[1], tid: m[2] };
+    if ((m = /^tm_(movie|tv)_(\d{1,9})$/.exec(String(c.id || '')))) return { k: m[1], tid: m[2] };
+    const im = c.im || (/^tt\d{6,10}$/.test(String(c.id || '')) ? c.id : '');
+    return /^tt\d{6,10}$/.test(im || '') ? { k: c.tk || (c.type === 'movie' ? 'movie' : 'tv'), im } : null;
+  }
+  const trRefExt = x => x && x.tid ? { k: x.k, tid: String(x.tid) } : null;
+  function trailerKey(ref) {
+    const ck = ref.tid ? ref.k + ref.tid : ref.im, c = TR[ck];
+    if (c && Date.now() - c.t < (c.k ? TR_TTL : TR_NEG)) return Promise.resolve(c.k);
+    return TRP[ck] || (TRP[ck] = (async () => {
+      let k = ref.k, tid = ref.tid;
+      if (!tid) {
+        const f = await trJson('/find/' + ref.im, '&external_source=imdb_id'); if (!f) return null;
+        const m = (f.movie_results || [])[0], t = (f.tv_results || [])[0], hit = ref.k === 'tv' ? (t || m) : (m || t);
+        if (!hit) { TR[ck] = { k: '', t: Date.now() }; trSave(); return ''; }
+        k = hit === t ? 'tv' : 'movie'; tid = hit.id;
+      }
+      const v = await trJson('/' + k + '/' + tid + '/videos'); if (!v) return null;
+      const key = trPick(v.results); TR[ck] = { k: key, t: Date.now() }; trSave(); return key;
+    })().finally(() => { delete TRP[ck]; }));
+  }
+  const ytSrc = (key, o) => 'https://www.youtube-nocookie.com/embed/' + key + '?rel=0&modestbranding=1&playsinline=1&autoplay=1' + (o || '');
+  const trFrame = key => `<iframe src="${ytSrc(key)}" title="Trailer" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+  const trSlot = ref => ref ? `<div class="tr" data-tr><div class="tr-s"><span>Looking for trailer…</span></div></div>` : '';
+  async function trLoad(d, ref, play) {
+    const box = d && d.querySelector('[data-tr]'); if (!box || !ref) return;
+    const key = await trailerKey(ref); if (!box.isConnected || !d.open) return;
+    if (key === null) { box.innerHTML = `<div class="tr-s done"><span>Trailer could not load right now</span></div>`; return; }
+    if (!key) { box.innerHTML = `<div class="tr-s done"><span>No trailer available</span></div>`; return; }
+    if (play) { box.innerHTML = trFrame(key); return; }
+    box.innerHTML = `<button type="button" class="tr-p" data-tplay="${key}" aria-label="Play trailer" style="background-image:url(https://i.ytimg.com/vi/${key}/hqdefault.jpg)"><i>${I('play')}</i><small>Watch trailer</small></button>`;
+  }
+  const trBtn = (attr, solo) => `<button type="button" class="tp ${solo ? 'solo' : ''}" ${attr} aria-label="Play trailer">${I('play')}</button>`;
+  function trCardRef(card) {
+    if (card.dataset.ext) return trRefExt(EXT.map.get(card.dataset.ext));
+    return card.dataset.id ? trRef(by[card.dataset.id]) : null;
+  }
+  /* desktop hover preview: muted, one at a time, only on devices that really hover */
+  const canHover = window.matchMedia ? window.matchMedia('(hover:hover) and (pointer:fine)') : { matches: false };
+  let hvCard = null, hvT = 0, hvBox = null;
+  function hvStop() { clearTimeout(hvT); hvT = 0; hvCard = null; if (hvBox) { hvBox.remove(); hvBox = null; } }
+  async function hvStart(card) {
+    const ref = trCardRef(card), po = card.querySelector('.poster'); if (!ref || !po) return;
+    const key = await trailerKey(ref); if (!key || hvCard !== card || !card.isConnected) return;
+    hvBox = document.createElement('div'); hvBox.className = 'pvb';
+    hvBox.innerHTML = `<iframe tabindex="-1" aria-hidden="true" src="${ytSrc(key, '&mute=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&loop=1&playlist=' + key + '&start=10')}" allow="autoplay; encrypted-media"></iframe>`;
+    const f = hvBox.firstChild, b = hvBox; f.addEventListener('load', () => setTimeout(() => b.classList.add('on'), 700));
+    po.insertBefore(hvBox, po.firstChild);
+  }
+  document.addEventListener('mouseover', e => {
+    if (!canHover.matches || !e.target.closest) return;
+    const card = e.target.closest('.card'); if (card === hvCard) return;
+    hvStop(); if (!card || !(card.dataset.id || card.dataset.ext) || $('#dlg').open) return;
+    hvCard = card; hvT = setTimeout(() => hvStart(card), 650);
+  });
+  document.addEventListener('mouseout', e => { if (hvCard && e.target.closest && !hvCard.contains(e.relatedTarget)) hvStop(); });
+  document.addEventListener('scroll', () => { if (hvCard) hvStop(); }, true);
   const extCard = x => {
     const key = x.k + '_' + x.tid; EXT.map.set(key, x);
-    return `<article class="card" data-ext="${key}" tabindex="0"><div class="poster ${x.p ? 'hasimg' : ''}" style="--h:${hue(x.t)}">${x.p ? `<img class="pimg" loading="lazy" alt="" src="${esc(x.p)}" onerror="this.remove()">` : ''}<i class="ini">${esc(x.t.replace(/^The /, '')[0] || '?')}</i><span class="rt">${I('star')}${x.r.toFixed(1)}</span>${isOwner() ? `<button class="add" data-ext-add="${key}" aria-label="Add to watchlist">${I('plus')}</button>` : ''}<div class="pi"><div class="gs">${x.g.slice(0, 2).map(g => `<em>${esc(g)}</em>`).join('')}</div><b>${esc(x.t)}</b></div></div></article>`;
+    return `<article class="card" data-ext="${key}" tabindex="0"><div class="poster ${x.p ? 'hasimg' : ''}" style="--h:${hue(x.t)}">${x.p ? `<img class="pimg" loading="lazy" alt="" src="${esc(x.p)}" onerror="this.remove()">` : ''}<i class="ini">${esc(x.t.replace(/^The /, '')[0] || '?')}</i><span class="rt">${I('star')}${x.r.toFixed(1)}</span>${isOwner() ? `<button class="add" data-ext-add="${key}" aria-label="Add to watchlist">${I('plus')}</button>` : ''}${trBtn(`data-trail="E:${key}"`, !isOwner())}<div class="pi"><div class="gs">${x.g.slice(0, 2).map(g => `<em>${esc(g)}</em>`).join('')}</div><b>${esc(x.t)}</b></div></div></article>`;
   };
   function extSections() {
     const d = EXT.d; if (!d) return ''; EXT.map.clear();
@@ -93,10 +160,11 @@
     } catch (e) { if (EXT.d) EXT.at = Date.now() - EXT_TTL + 3e5; else { EXT.st = 'fail'; EXT.at = Date.now(); } }
     paintExt();
   }
-  function openExt(key) {
+  function openExt(key, play) {
     const x = EXT.map.get(key); if (!x) return; const d = $('#dlg');
-    d.innerHTML = `<div class="dh" style="--h:${hue(x.t)}"><button class="x" data-close aria-label="Close">${I('x')}</button><h2>${esc(x.t)}</h2><p>${x.y ? x.y + ' • ' : ''}${x.k === 'tv' ? 'TV Show' : 'Movie'} • ${I('star')} ${x.r.toFixed(1)}</p></div><div class="db">${x.p ? `<img class="xp" src="${esc(x.p)}" alt="" onerror="this.remove()">` : ''}<p>${esc(x.d) || 'No description available yet.'}</p><div class="gs">${x.g.map(g => `<em style="background:var(--sf2)">${esc(g)}</em>`).join('')}</div>${isOwner() ? `<button class="btn p" data-ext-add="${key}">${I('plus')} Add to Watchlist</button>` : `<p style="color:var(--mu)">Only the diary owner can add titles.</p>`}</div>`;
+    d.innerHTML = `<div class="dh" style="--h:${hue(x.t)}"><button class="x" data-close aria-label="Close">${I('x')}</button><h2>${esc(x.t)}</h2><p>${x.y ? x.y + ' • ' : ''}${x.k === 'tv' ? 'TV Show' : 'Movie'} • ${I('star')} ${x.r.toFixed(1)}</p></div><div class="db">${trSlot(trRefExt(x))}${x.p ? `<img class="xp" src="${esc(x.p)}" alt="" onerror="this.remove()">` : ''}<p>${esc(x.d) || 'No description available yet.'}</p><div class="gs">${x.g.map(g => `<em style="background:var(--sf2)">${esc(g)}</em>`).join('')}</div>${isOwner() ? `<button class="btn p" data-ext-add="${key}">${I('plus')} Add to Watchlist</button>` : `<p style="color:var(--mu)">Only the diary owner can add titles.</p>`}</div>`;
     if (!d.open) d.showModal();
+    trLoad(d, trRefExt(x), play);
   }
   async function addExt(key, btn) {
     const x = EXT.map.get(key), cl = window.MD && window.MD.cloud; if (!x) return;
@@ -240,10 +308,11 @@
     if (!l.st && !l.fav && !l.my) delete S.lib[id];
     save(); render(); if ($('#dlg').open && a !== 'log') open(id);
   }
-  function open(id) {
+  function open(id, play) {
     const c = by[id], l = L(id), d = $('#dlg');
-    d.innerHTML = `<div class="dh" style="--h:${c.h}"><button class="x" data-close aria-label="Close">${I('x')}</button><h2>${esc(c.t)}</h2><p>${c.y} • ${TYPE[c.type]} • ${fm(c.m > 4000 ? 60 : c.m)}${c.m > 4000 ? '/ep' : ''} • ${I('star')} ${c.r.toFixed(1)}</p></div><div class="db" data-id="${id}"><p>${esc(c.d)}</p><div class="gs">${c.g.map(g => `<em style="background:var(--sf2)">${esc(g)}</em>`).join('')}</div><div class="seg">${['will', 'watching', 'watched'].map(k => `<button class="btn ${l.st === k ? 'on' : ''}" data-act="${k}">${ST[k]}</button>`).join('')}</div>${l.st === 'watching' ? `<label class="field">Progress: ${l.p || 0}%<input type="range" min="0" max="100" step="5" value="${l.p || 0}" data-prog></label>` : ''}<div style="display:flex;justify-content:space-between;align-items:center"><div class="stars" aria-label="Your rating">${[1, 2, 3, 4, 5].map(i => `<button class="${(l.my || 0) >= i * 2 ? 'on' : ''}" data-act="rate" data-v="${i * 2}" aria-label="${i * 2} out of 10">${I('star')}</button>`).join('')}</div><button class="btn ${l.fav ? 'p' : ''}" data-act="fav">${I('heart')} ${l.fav ? 'Favorite' : 'Add favorite'}</button></div>${c.cloud && window.MD.cloud && window.MD.cloud.owner ? `<button class="btn sm" data-do="rm">${I('x')} Remove from diary</button>` : ''}</div>`;
+    d.innerHTML = `<div class="dh" style="--h:${c.h}"><button class="x" data-close aria-label="Close">${I('x')}</button><h2>${esc(c.t)}</h2><p>${c.y} • ${TYPE[c.type]} • ${fm(c.m > 4000 ? 60 : c.m)}${c.m > 4000 ? '/ep' : ''} • ${I('star')} ${c.r.toFixed(1)}</p></div><div class="db" data-id="${id}">${trSlot(trRef(c))}<p>${esc(c.d)}</p><div class="gs">${c.g.map(g => `<em style="background:var(--sf2)">${esc(g)}</em>`).join('')}</div><div class="seg">${['will', 'watching', 'watched'].map(k => `<button class="btn ${l.st === k ? 'on' : ''}" data-act="${k}">${ST[k]}</button>`).join('')}</div>${l.st === 'watching' ? `<label class="field">Progress: ${l.p || 0}%<input type="range" min="0" max="100" step="5" value="${l.p || 0}" data-prog></label>` : ''}<div style="display:flex;justify-content:space-between;align-items:center"><div class="stars" aria-label="Your rating">${[1, 2, 3, 4, 5].map(i => `<button class="${(l.my || 0) >= i * 2 ? 'on' : ''}" data-act="rate" data-v="${i * 2}" aria-label="${i * 2} out of 10">${I('star')}</button>`).join('')}</div><button class="btn ${l.fav ? 'p' : ''}" data-act="fav">${I('heart')} ${l.fav ? 'Favorite' : 'Add favorite'}</button></div>${c.cloud && window.MD.cloud && window.MD.cloud.owner ? `<button class="btn sm" data-do="rm">${I('x')} Remove from diary</button>` : ''}</div>`;
     if (!d.open) d.showModal();
+    trLoad(d, trRef(c), play);
   }
   function bell() {
     const w = C.find(c => L(c.id).st === 'watching'), n = C.filter(c => L(c.id).st === 'will').length, t = [...C].sort((a, b) => b.tr - a.tr)[0];
@@ -262,6 +331,9 @@
   document.addEventListener('click', e => {
     const t = e.target, g = s => t.closest(s);
     if (g('[data-close]')) { $('#dlg').close(); return; }
+    let tb;
+    if ((tb = g('[data-tplay]'))) { const bx = tb.closest('[data-tr]'); if (bx) bx.innerHTML = trFrame(tb.dataset.tplay); return; }
+    if ((tb = g('[data-trail]'))) { hvStop(); const v = tb.dataset.trail; if (v[0] === 'E') openExt(v.slice(2), true); else open(v.slice(2), true); return; }
     let ex; if ((ex = g('[data-ext-add]'))) { e.stopPropagation(); addExt(ex.dataset.extAdd, ex); return; }
     if ((ex = g('[data-ext]'))) { openExt(ex.dataset.ext); return; }
     if (t === $('#dlg')) { $('#dlg').close(); return; }
@@ -328,5 +400,6 @@
   /* app feel: long-press on a poster/card must not open the browser's image menu (Chrome/TWA) */
   document.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('img,.card,.hero,.hl .it,.cw,.ar,.xp') && !e.target.closest('input,textarea')) e.preventDefault(); });
   document.addEventListener('dragstart', e => { if (e.target.tagName === 'IMG') e.preventDefault(); });
+  $('#dlg').addEventListener('close', () => { if (!$('#dlg').open) $$('#dlg [data-tr]').forEach(b => { b.innerHTML = ''; }); });
   window.MD = { setCatalog, upsert, removeItem, reset, setLib: o => { S.lib = o; }, C, by, get S() { return S; }, save, open, render, toast, esc, I, act, L, stats, recs, fm };
 })();
