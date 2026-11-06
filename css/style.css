@@ -262,3 +262,22 @@ dialog.adlg .x{z-index:6;background:rgba(255,255,255,.1);border:1px solid rgba(2
 .card,.card *,.hero,.hero *,.row img,.grid img,.hl .it,.hl .it *,.cw,.cw *,img{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
 .ad-list img,.ar img,.xp{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
 input,textarea{-webkit-user-select:text;user-select:text}
+
+/* trailers */
+.tr{position:relative;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:#05020f;border:1px solid var(--bd);box-shadow:0 12px 34px rgba(0,0,0,.4)}
+.tr iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.tr-s{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:12px;color:#b9b0e0;font-size:13.5px;background:linear-gradient(100deg,rgba(255,255,255,.03) 30%,rgba(255,255,255,.09) 50%,rgba(255,255,255,.03) 70%);background-size:200% 100%;animation:shim 1.4s linear infinite}
+.tr-s.done{animation:none;background:rgba(255,255,255,.05)}
+.tr-p{position:absolute;inset:0;width:100%;height:100%;display:grid;place-items:center;background-size:cover;background-position:center;color:#fff}
+.tr-p::before{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(5,2,18,.75),rgba(5,2,18,.15) 60%)}
+.tr-p i{position:relative;width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--ac),var(--ac2));box-shadow:0 10px 30px rgba(0,0,0,.55),0 0 0 6px rgba(255,255,255,.14);transition:transform .25s}
+.tr-p i .ic{width:26px;height:26px;margin-left:3px}.tr-p:hover i{transform:scale(1.12)}
+.tr-p small{position:absolute;left:14px;bottom:10px;font-weight:700;font-size:12.5px;letter-spacing:.3px}
+/* ▶ on cards */
+.tp{position:absolute;right:8px;top:44px;z-index:2;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:rgba(10,5,28,.62);backdrop-filter:blur(6px);color:#fff;border:1px solid rgba(255,255,255,.28);transition:.25s}
+.tp.solo{top:8px}.tp .ic{width:13px;height:13px;margin-left:1px}.tp:hover{background:var(--ac);transform:scale(1.15)}
+.poster .rt,.poster .add,.poster .tp,.poster .pi,.poster .prog{z-index:2}
+/* desktop hover preview (video sits above the poster picture, under the gradient + badges) */
+.pvb{position:absolute;inset:0;z-index:-1;opacity:0;transition:opacity .5s;pointer-events:none;background:#05020f}.pvb.on{opacity:1}
+.pvb iframe{position:absolute;top:0;left:50%;height:100%;width:237%;transform:translateX(-50%);border:0;pointer-events:none}
+@media(max-width:560px){.tr-p i{width:54px;height:54px}}
