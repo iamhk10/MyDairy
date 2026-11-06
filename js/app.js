@@ -92,7 +92,9 @@
     })().finally(() => { delete TRP[ck]; }));
   }
   const ytSrc = (key, o) => 'https://www.youtube-nocookie.com/embed/' + key + '?rel=0&modestbranding=1&playsinline=1&autoplay=1' + (o || '');
-  const trFrame = key => `<iframe src="${ytSrc(key)}" title="Trailer" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+  const trFrame = key => `<iframe src="${ytSrc(key, '&enablejsapi=1')}" title="Trailer" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" onload="MD.unmute(this)"></iframe>`;
+  /* some browsers start an autoplaying embed muted — nudge it to full volume (we are inside a tap, so it is allowed) */
+  function unmute(f) { const say = fn => { try { f.contentWindow.postMessage(JSON.stringify({ event: 'command', func: fn, args: fn === 'setVolume' ? [100] : [] }), '*'); } catch (e) {} }; [400, 1200, 2500].forEach(t => setTimeout(() => { say('unMute'); say('setVolume'); }, t)); }
   const trSlot = ref => ref ? `<div class="tr" data-tr><div class="tr-s"><span>Looking for trailer…</span></div></div>` : '';
   async function trLoad(d, ref, play) {
     const box = d && d.querySelector('[data-tr]'); if (!box || !ref) return;
@@ -110,15 +112,22 @@
   /* desktop hover preview: muted, one at a time, only on devices that really hover */
   const canHover = window.matchMedia ? window.matchMedia('(hover:hover) and (pointer:fine)') : { matches: false };
   let hvCard = null, hvT = 0, hvBox = null;
-  function hvStop() { clearTimeout(hvT); hvT = 0; hvCard = null; if (hvBox) { hvBox.remove(); hvBox = null; } }
+  const SND_KEY = 'mydairy.pvsound'; let pvSound = false; try { pvSound = localStorage.getItem(SND_KEY) === '1'; } catch (e) {}
+  let hvBtn = null;
+  function hvStop() { clearTimeout(hvT); hvT = 0; hvCard = null; if (hvBox) { hvBox.remove(); hvBox = null; } if (hvBtn) { hvBtn.remove(); hvBtn = null; } }
+  function sndIcon() { return pvSound ? '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>' : '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="m16 9 6 6M22 9l-6 6"/></svg>'; }
   async function hvStart(card) {
     const ref = trCardRef(card), po = card.querySelector('.poster'); if (!ref || !po) return;
     const key = await trailerKey(ref); if (!key || hvCard !== card || !card.isConnected) return;
+    const loud = pvSound && !(navigator.userActivation && !navigator.userActivation.hasBeenActive);
     hvBox = document.createElement('div'); hvBox.className = 'pvb';
-    hvBox.innerHTML = `<iframe tabindex="-1" aria-hidden="true" src="${ytSrc(key, '&mute=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&loop=1&playlist=' + key + '&start=10')}" allow="autoplay; encrypted-media"></iframe>`;
+    hvBox.innerHTML = `<iframe tabindex="-1" aria-hidden="true" src="${ytSrc(key, (loud ? '' : '&mute=1') + '&controls=0&disablekb=1&fs=0&iv_load_policy=3&loop=1&playlist=' + key + '&start=10')}" allow="autoplay; encrypted-media"></iframe>`;
     const f = hvBox.firstChild, b = hvBox; f.addEventListener('load', () => setTimeout(() => b.classList.add('on'), 700));
     po.insertBefore(hvBox, po.firstChild);
+    hvBtn = document.createElement('button'); hvBtn.type = 'button'; hvBtn.className = 'ts'; hvBtn.dataset.tsound = '1'; hvBtn.setAttribute('aria-label', 'Preview sound on/off'); hvBtn.title = pvSound ? 'Sound on' : 'Sound off — click to turn on'; hvBtn.innerHTML = sndIcon();
+    po.appendChild(hvBtn);
   }
+  function hvToggle() { pvSound = !pvSound; try { localStorage.setItem(SND_KEY, pvSound ? '1' : '0'); } catch (e) {} const c = hvCard; hvStop(); if (c) { hvCard = c; hvStart(c); } }
   document.addEventListener('mouseover', e => {
     if (!canHover.matches || !e.target.closest) return;
     const card = e.target.closest('.card'); if (card === hvCard) return;
@@ -332,6 +341,7 @@
     const t = e.target, g = s => t.closest(s);
     if (g('[data-close]')) { $('#dlg').close(); return; }
     let tb;
+    if (g('[data-tsound]')) { hvToggle(); return; }
     if ((tb = g('[data-tplay]'))) { const bx = tb.closest('[data-tr]'); if (bx) bx.innerHTML = trFrame(tb.dataset.tplay); return; }
     if ((tb = g('[data-trail]'))) { hvStop(); const v = tb.dataset.trail; if (v[0] === 'E') openExt(v.slice(2), true); else open(v.slice(2), true); return; }
     let ex; if ((ex = g('[data-ext-add]'))) { e.stopPropagation(); addExt(ex.dataset.extAdd, ex); return; }
@@ -401,5 +411,5 @@
   document.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('img,.card,.hero,.hl .it,.cw,.ar,.xp') && !e.target.closest('input,textarea')) e.preventDefault(); });
   document.addEventListener('dragstart', e => { if (e.target.tagName === 'IMG') e.preventDefault(); });
   $('#dlg').addEventListener('close', () => { if (!$('#dlg').open) $$('#dlg [data-tr]').forEach(b => { b.innerHTML = ''; }); });
-  window.MD = { setCatalog, upsert, removeItem, reset, setLib: o => { S.lib = o; }, C, by, get S() { return S; }, save, open, render, toast, esc, I, act, L, stats, recs, fm };
+  window.MD = { unmute, setCatalog, upsert, removeItem, reset, setLib: o => { S.lib = o; }, C, by, get S() { return S; }, save, open, render, toast, esc, I, act, L, stats, recs, fm };
 })();
