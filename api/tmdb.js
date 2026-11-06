@@ -1,11 +1,11 @@
 /* GET /api/tmdb?path=/search/multi&query=… → TMDB v3. The key stays on the server.
-   • PUBLIC (no login, cached): trending / popular / top-rated lists — used by the Home tab for every visitor.
+   • PUBLIC (no login, cached): trending / popular / top-rated lists + trailer videos + IMDb→TMDB lookup — used by Home and trailers for every visitor.
    • OWNER only: everything else (search, details, actor search, an actor's filmography …). */
 'use strict';
 const L = require('./_lib');
 
-const PUBLIC_OK = /^\/(trending\/all\/week|(movie|tv)\/(popular|top_rated))$/;
-const OWNER_OK = /^\/(search\/(multi|movie|tv|person)|(movie|tv)\/\d{1,9}|person\/(popular|\d{1,9}\/combined_credits)|find\/tt\d{6,10}|configuration)$/;
+const PUBLIC_OK = /^\/(trending\/all\/week|(movie|tv)\/(popular|top_rated)|(movie|tv)\/\d{1,9}\/videos|find\/tt\d{6,10})$/;
+const OWNER_OK = /^\/(search\/(multi|movie|tv|person)|(movie|tv)\/\d{1,9}|person\/(popular|\d{1,9}\/combined_credits)|configuration)$/;
 const PARAMS = ['query', 'page', 'language', 'include_adult', 'append_to_response', 'external_source'];
 
 module.exports = async (req, res) => {
